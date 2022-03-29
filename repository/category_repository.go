@@ -6,12 +6,13 @@ import (
 	"errors"
 	"go-restfulapi/helper"
 	"go-restfulapi/model/domain"
+	"go-restfulapi/model/web/category_web"
 )
 
 type CategoryRepository interface {
 	Save(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category
-	Update(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category
-	Delete(ctx context.Context, tx *sql.Tx, category domain.Category)
+	Update(ctx context.Context, tx *sql.Tx, category domain.Category) *category_web.CategoryUpdateResponse
+	Delete(ctx context.Context, tx *sql.Tx, category domain.Category) *category_web.CategoryDeleteResponse
 	FindById(ctx context.Context, tx *sql.Tx, categoryId int) (domain.Category, error)
 	FindAll(ctx context.Context, tx *sql.Tx) []domain.Category
 }
@@ -20,8 +21,12 @@ type CategoryRepositoryImpl struct {
 	
 }
 
+func NewCategoryRepository() CategoryRepository {
+	return &CategoryRepositoryImpl{}
+}
+
 func (repository *CategoryRepositoryImpl) Save(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category {
-	SQL := "INSERT INTO customer(name) VALUES (?)"
+	SQL := "INSERT INTO category(name) VALUES (?)"
 	result, err := tx.ExecContext(ctx, SQL, category.Name)
 	helper.PanicError(err)
 
@@ -32,24 +37,36 @@ func (repository *CategoryRepositoryImpl) Save(ctx context.Context, tx *sql.Tx, 
 	return category
 }
 
-func (repository *CategoryRepositoryImpl) Update(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category {
+func (repository *CategoryRepositoryImpl) Update(ctx context.Context, tx *sql.Tx, category domain.Category) *category_web.CategoryUpdateResponse {
 	SQL := "UPDATE category SET name = ? WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, category.Name, category.Id)
+	result, err := tx.ExecContext(ctx, SQL, category.Name, category.Id)
 	helper.PanicError(err)
 
-	return category
+	updatedCount, err := result.RowsAffected()
+	helper.PanicError(err)
+
+	return &category_web.CategoryUpdateResponse{
+		UpdatedCount: int(updatedCount),
+	}
 }
 
-func (repository *CategoryRepositoryImpl) Delete(ctx context.Context, tx *sql.Tx, category domain.Category) {
+func (repository *CategoryRepositoryImpl) Delete(ctx context.Context, tx *sql.Tx, category domain.Category) *category_web.CategoryDeleteResponse {
 	SQL := "DELETE FROM category WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, category.Id)
+	result, err := tx.ExecContext(ctx, SQL, category.Id)
 	helper.PanicError(err)
+
+	deletedCount, err := result.RowsAffected()
+	return &category_web.CategoryDeleteResponse{
+		DeletedCount: int(deletedCount),
+	}
+
 }
 
 func (repository *CategoryRepositoryImpl) FindById(ctx context.Context, tx *sql.Tx, categoryId int) (domain.Category, error) {
 	SQL := "SELECT id,name FROM category WHERE id = ?"
 	rows, err := tx.QueryContext(ctx, SQL, categoryId)
 	helper.PanicError(err)
+	defer rows.Close()
 
 	category := domain.Category{}
 	if rows.Next() {
@@ -66,6 +83,7 @@ func (repository *CategoryRepositoryImpl) FindAll(ctx context.Context, tx *sql.T
 	SQL := "SELECT id, name FROM category"
 	rows, err := tx.QueryContext(ctx, SQL)
 	helper.PanicError(err)
+	defer rows.Close()
 
 	var categories []domain.Category
 	for rows.Next(){
