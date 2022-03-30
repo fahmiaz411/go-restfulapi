@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"database/sql"
 	"go-restfulapi/helper"
 	"go-restfulapi/model/web"
 	"go-restfulapi/model/web/category_web"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -23,7 +25,8 @@ type CategoryController interface {
 	CategoryService service.CategoryService
  }
 
- func NewCategoryController(service service.CategoryService)CategoryController{
+ func NewCategoryController(db *sql.DB, v *validator.Validate)CategoryController{
+	service := service.NewCategoryService(db, v)
 	return &CategoryControllerImpl{
 		CategoryService: service,
 	}
