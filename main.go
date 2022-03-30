@@ -1,47 +1,65 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"go-restfulapi/app"
-	"go-restfulapi/controller"
 	"go-restfulapi/helper"
-	"go-restfulapi/repository"
-	"go-restfulapi/service"
+	"go-restfulapi/router"
+	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/julienschmidt/httprouter"
 )
 
-func main() {
-
-	db := app.NewDB()
-	validate := validator.New()
-
-	categoryRepository := repository.NewCategoryRepository()
-	categoryService := service.NewCategoryService(categoryRepository, db, validate)
-	categoryController := controller.NewCategoryController(categoryService)
-
-	router := httprouter.New()
-
-	router.GET("/api/categories", categoryController.FindAll)
-	router.GET("/api/categories/:categoryId", categoryController.FindById)
+func StartRoutes(db *sql.DB) http.Handler {
 	
-	router.POST("/api/categories", categoryController.Create)
-	router.PUT("/api/categories/:categoryId", categoryController.Update)
-	router.DELETE("/api/categories/:categoryId", categoryController.Delete)
+	v := validator.New()
+	r := httprouter.New()
+	
+	router.StartCategoryRouter(r, db, v)
 
-	port := 3000
+	return r
+}
+
+func ValidateDatabase(db *sql.DB){
+	
+	q_bytes, err := ioutil.ReadFile("sql/db.sql")
+	helper.PanicError(err)
+
+	queries := strings.Split(string(q_bytes), ";")
+	for _, v := range queries {
+		if v != ""{
+			_, err := db.Exec(v)
+			helper.PanicError(err)
+		} 
+	}
+
+}
+
+func StartServer(host string, port int) error {
+	db := app.NewDB() 
+    ValidateDatabase(db)
+	handler := StartRoutes(db)
 
 	server := http.Server{
-		Addr: "localhost:" + strconv.Itoa(port),
-		Handler: router,
+		Addr: host + ":" + strconv.Itoa(port),
+		Handler: handler,
 	}
 
 	fmt.Println("Server running at port: " + strconv.Itoa(port))
 	err := server.ListenAndServe()
-	helper.PanicError(err)
+
+	return err
+}
+
+func main() {
+
+    err := StartServer("localhost", 3000)
+    helper.PanicError(err)
 
 }
